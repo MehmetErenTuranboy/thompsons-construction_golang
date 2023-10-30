@@ -7,7 +7,7 @@ import (
 	"github.com/golang-collections/collections/stack"
 )
 
-// presidence list of symbols
+// applyPresedence returns the precedence of a given operator
 func applyPresedence(c rune) int {
 	switch c {
 	case '*':
@@ -21,60 +21,65 @@ func applyPresedence(c rune) int {
 	}
 }
 
+// operatorLister checks if a character is an operator
 func operatorLister(c rune) bool {
 	return strings.ContainsRune("|*.", c)
 }
 
-// converting infix to posfix for the sake of making regex to nfa construction easier
+// infixToPostfix converts an infix regular expression to postfix notation
 func infixToPostfix(infixRegex string) string {
 	var resultInPostfix strings.Builder
-	var stack []rune
-	// var cursor rune
-	// var cacheStack []rune
-
-	fmt.Printf("Input of infixToPostfix: %s\n", infixRegex)
+	stack := stack.New()
 
 	for _, c := range infixRegex {
 		if c >= 'a' && c <= 'z' {
 			resultInPostfix.WriteRune(c)
 		} else if c == '(' {
-			stack = append(stack, c)
+			stack.Push(c)
 		} else if c == ')' {
-			for len(stack) > 0 && stack[len(stack)-1] != '(' {
-				resultInPostfix.WriteRune(stack[len(stack)-1])
-				stack = stack[:len(stack)-1]
+			for stack.Len() > 0 && stack.Peek() != '(' {
+				resultInPostfix.WriteRune(stack.Pop().(rune))
 			}
+			stack.Pop() // Pop '('
 		} else if operatorLister(c) {
-			for len(stack) > 0 && operatorLister(stack[len(stack)-1]) {
-				resultInPostfix.WriteRune(stack[len(stack)-1])
-				stack = stack[:len(stack)-1]
+			for stack.Len() > 0 && operatorLister(stack.Peek().(rune)) && applyPresedence(c) <= applyPresedence(stack.Peek().(rune)) {
+				resultInPostfix.WriteRune(stack.Pop().(rune))
 			}
-			stack = append(stack, c)
+			stack.Push(c)
 		}
 	}
 
-	for len(stack) > 0 {
-		resultInPostfix.WriteRune(stack[len(stack)-1])
-		stack = stack[:len(stack)-1]
+	for stack.Len() > 0 {
+		resultInPostfix.WriteRune(stack.Pop().(rune))
 	}
 
 	fmt.Printf("Output of infixToPostfix: %s\n", resultInPostfix.String())
 	return resultInPostfix.String()
 }
 
-// nfa node construction
 type state struct {
 	label      rune
 	firstEdge  *state
 	secondEdge *state
 }
 
-// nfa's state construction
 type nfa struct {
 	initialState *state
 	endState     *state
 }
 
+func addConcatOperators(infix string) string {
+	var b strings.Builder
+	for i, r := range infix {
+		if i > 0 && (infix[i-1] >= 'a' && infix[i-1] <= 'z' || infix[i-1] == ')') && (r >= 'a' && r <= 'z' || r == '(') {
+			b.WriteRune('.')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// compile creates an NFA from a postfix regular expression
 func compile(postfix string) *nfa {
 	nfaStack := stack.New()
 
@@ -82,40 +87,31 @@ func compile(postfix string) *nfa {
 		switch c {
 		case '*':
 			childNFA := nfaStack.Pop().(*nfa)
-			initial := &state{label: 0, firstEdge: nil, secondEdge: nil}
+			initial := &state{label: 0, firstEdge: childNFA.initialState, secondEdge: nil}
 			end := &state{label: 0, firstEdge: nil, secondEdge: nil}
-			initial.firstEdge = childNFA.initialState
 			initial.secondEdge = end
 			childNFA.endState.firstEdge = childNFA.initialState
 			childNFA.endState.secondEdge = end
 			nfaStack.Push(&nfa{initialState: initial, endState: end})
+
 		case '.':
 			nfa2 := nfaStack.Pop().(*nfa)
 			nfa1 := nfaStack.Pop().(*nfa)
-
-			// Connect nfa1's end state to nfa2's initial state
 			nfa1.endState.firstEdge = nfa2.initialState
+			nfaStack.Push(&nfa{initialState: nfa1.initialState, endState: nfa2.endState})
 
-			// Update the end state of the resulting NFA
-			resultNFA := &nfa{
-				initialState: nfa1.initialState,
-				endState:     nfa2.endState,
-			}
-			nfaStack.Push(resultNFA)
 		default:
 			initial := &state{label: c, firstEdge: nil, secondEdge: nil}
-			end := &state{label: 0, firstEdge: nil, secondEdge: nil}
-			initial.firstEdge = end
-			nfaStack.Push(&nfa{initialState: initial, endState: end})
+			nfaStack.Push(&nfa{initialState: initial, endState: initial})
 		}
 	}
 
 	result := nfaStack.Pop().(*nfa)
-
+	fmt.Printf("Result initial state label: %c\n", result.initialState.label)
 	return result
 }
 
-// for testing purposes
+// printStates recursively prints the states of the NFA
 func printStates(currentState *state, visited map[*state]bool) {
 	if currentState == nil || visited[currentState] {
 		return
@@ -123,25 +119,30 @@ func printStates(currentState *state, visited map[*state]bool) {
 
 	visited[currentState] = true
 
-	fmt.Printf("State: %p, Label: %c\n", currentState, currentState.label)
+	// Using state labels to indicate special types of states
+	stateLabel := string(currentState.label)
+	if currentState.label == 0 {
+		if currentState.firstEdge != nil && currentState.secondEdge != nil {
+			stateLabel = "SPLIT"
+		} else {
+			stateLabel = "EPSILON"
+		}
+	}
+
+	fmt.Printf("State: %p, Label: %s\n", currentState, stateLabel)
 
 	printStates(currentState.firstEdge, visited)
 	printStates(currentState.secondEdge, visited)
 }
 
 func main() {
-	inputInfixValue := "aa.b|b|b"
-	infixToPostfix(inputInfixValue)
+	input := "aaa*"
+	input = addConcatOperators(input)
+	postfixVal := infixToPostfix(input)
 
-	postfix := "caacabc*."
-	resultNFA := compile(postfix)
+	fmt.Println("Postfix: ", postfixVal)
 
-	// You can now use the resultNFA for further processing or visualization.
-	fmt.Printf("Initial State Label: %c\n", resultNFA.initialState.label)
-	fmt.Printf("End State Label: %c\n", resultNFA.endState.label)
-
-	fmt.Println("All States in the NFA:")
+	automataRes := compile(postfixVal)
 	visited := make(map[*state]bool)
-	printStates(resultNFA.initialState, visited)
-
+	printStates(automataRes.initialState, visited)
 }
