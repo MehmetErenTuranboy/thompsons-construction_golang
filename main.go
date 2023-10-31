@@ -9,8 +9,7 @@ import (
 
 const EPSILON = rune(0)
 
-// applyPresedence returns the precedence of a given operator
-func applyPresedence(c rune) int {
+func applyPrecedence(c rune) int {
 	switch c {
 	case '*':
 		return 3
@@ -23,12 +22,10 @@ func applyPresedence(c rune) int {
 	}
 }
 
-// operatorLister checks if a character is an operator
 func operatorLister(c rune) bool {
 	return strings.ContainsRune("|*.", c)
 }
 
-// infixToPostfix converts an infix regular expression to postfix notation
 func infixToPostfix(infixRegex string) string {
 	var resultInPostfix strings.Builder
 	stack := stack.New()
@@ -43,8 +40,8 @@ func infixToPostfix(infixRegex string) string {
 				resultInPostfix.WriteRune(stack.Pop().(rune))
 			}
 			stack.Pop() // Pop '('
-		} else if operatorLister(c) {
-			for stack.Len() > 0 && operatorLister(stack.Peek().(rune)) && applyPresedence(c) <= applyPresedence(stack.Peek().(rune)) {
+		} else if applyPrecedence(c) > -1 {
+			for stack.Len() > 0 && operatorLister(stack.Peek().(rune)) && applyPrecedence(c) <= applyPrecedence(stack.Peek().(rune)) {
 				resultInPostfix.WriteRune(stack.Pop().(rune))
 			}
 			stack.Push(c)
@@ -63,11 +60,19 @@ type state struct {
 	label      rune
 	firstEdge  *state
 	secondEdge *state
+	id         int
 }
 
 type nfa struct {
 	initialState *state
 	endState     *state
+}
+
+var stateID = 0
+
+func newState(label rune, firstEdge, secondEdge *state) *state {
+	stateID++
+	return &state{label, firstEdge, secondEdge, stateID}
 }
 
 func addConcatOperators(infix string) string {
@@ -81,7 +86,6 @@ func addConcatOperators(infix string) string {
 	return b.String()
 }
 
-// compile creates an NFA from a postfix regular expression
 func compile(postfix string) *nfa {
 	nfaStack := stack.New()
 
@@ -89,8 +93,8 @@ func compile(postfix string) *nfa {
 		switch c {
 		case '*':
 			childNFA := nfaStack.Pop().(*nfa)
-			initial := &state{label: EPSILON, firstEdge: childNFA.initialState, secondEdge: nil}
-			end := &state{label: EPSILON, firstEdge: nil, secondEdge: nil}
+			initial := newState(EPSILON, childNFA.initialState, nil)
+			end := newState(EPSILON, nil, nil)
 			initial.secondEdge = end
 			childNFA.endState.firstEdge = childNFA.initialState
 			childNFA.endState.secondEdge = end
@@ -105,24 +109,21 @@ func compile(postfix string) *nfa {
 		case '|':
 			nfa2 := nfaStack.Pop().(*nfa)
 			nfa1 := nfaStack.Pop().(*nfa)
-			initial := &state{label: EPSILON, firstEdge: nfa1.initialState, secondEdge: nfa2.initialState}
-			end := &state{label: EPSILON, firstEdge: nil, secondEdge: nil}
+			initial := newState(EPSILON, nfa1.initialState, nfa2.initialState)
+			end := newState(EPSILON, nil, nil)
 			nfa1.endState.firstEdge = end
 			nfa2.endState.firstEdge = end
 			nfaStack.Push(&nfa{initialState: initial, endState: end})
 
 		default:
-			initial := &state{label: c, firstEdge: nil, secondEdge: nil}
+			initial := newState(c, nil, nil)
 			nfaStack.Push(&nfa{initialState: initial, endState: initial})
 		}
 	}
 
-	result := nfaStack.Pop().(*nfa)
-	fmt.Printf("Result initial state label: %c\n", result.initialState.label)
-	return result
+	return nfaStack.Pop().(*nfa)
 }
 
-// printStates recursively prints the states of the NFA
 func printStates(currentState *state, visited map[*state]bool) {
 	if currentState == nil || visited[currentState] {
 		return
@@ -130,9 +131,17 @@ func printStates(currentState *state, visited map[*state]bool) {
 
 	visited[currentState] = true
 
-	// Using state labels to indicate special types of states
+	firstEdgeLabel := "-"
+	secondEdgeLabel := "-"
+	if currentState.firstEdge != nil {
+		firstEdgeLabel = fmt.Sprintf("%d", currentState.firstEdge.id)
+	}
+	if currentState.secondEdge != nil {
+		secondEdgeLabel = fmt.Sprintf("%d", currentState.secondEdge.id)
+	}
+
 	stateLabel := string(currentState.label)
-	if currentState.label == 0 {
+	if currentState.label == EPSILON {
 		if currentState.firstEdge != nil && currentState.secondEdge != nil {
 			stateLabel = "SPLIT"
 		} else {
@@ -140,14 +149,14 @@ func printStates(currentState *state, visited map[*state]bool) {
 		}
 	}
 
-	fmt.Printf("State: %p, Label: %s\n", currentState, stateLabel)
+	fmt.Printf("State ID: %d, Label: %s, First Edge: %s, Second Edge: %s\n", currentState.id, stateLabel, firstEdgeLabel, secondEdgeLabel)
 
 	printStates(currentState.firstEdge, visited)
 	printStates(currentState.secondEdge, visited)
 }
 
 func main() {
-	input := "a(a|b)aaa"
+	input := "a|b"
 	input = addConcatOperators(input)
 	postfixVal := infixToPostfix(input)
 
