@@ -7,6 +7,8 @@ import (
 	"github.com/golang-collections/collections/stack"
 )
 
+const EPSILON = rune(0)
+
 // applyPresedence returns the precedence of a given operator
 func applyPresedence(c rune) int {
 	switch c {
@@ -71,7 +73,7 @@ type nfa struct {
 func addConcatOperators(infix string) string {
 	var b strings.Builder
 	for i, r := range infix {
-		if i > 0 && (infix[i-1] >= 'a' && infix[i-1] <= 'z' || infix[i-1] == ')') && (r >= 'a' && r <= 'z' || r == '(') {
+		if i > 0 && (infix[i-1] >= 'a' && infix[i-1] <= 'z' || infix[i-1] == '*' || infix[i-1] == ')') && (r >= 'a' && r <= 'z' || r == '(') {
 			b.WriteRune('.')
 		}
 		b.WriteRune(r)
@@ -87,8 +89,8 @@ func compile(postfix string) *nfa {
 		switch c {
 		case '*':
 			childNFA := nfaStack.Pop().(*nfa)
-			initial := &state{label: 0, firstEdge: childNFA.initialState, secondEdge: nil}
-			end := &state{label: 0, firstEdge: nil, secondEdge: nil}
+			initial := &state{label: EPSILON, firstEdge: childNFA.initialState, secondEdge: nil}
+			end := &state{label: EPSILON, firstEdge: nil, secondEdge: nil}
 			initial.secondEdge = end
 			childNFA.endState.firstEdge = childNFA.initialState
 			childNFA.endState.secondEdge = end
@@ -99,6 +101,15 @@ func compile(postfix string) *nfa {
 			nfa1 := nfaStack.Pop().(*nfa)
 			nfa1.endState.firstEdge = nfa2.initialState
 			nfaStack.Push(&nfa{initialState: nfa1.initialState, endState: nfa2.endState})
+
+		case '|':
+			nfa2 := nfaStack.Pop().(*nfa)
+			nfa1 := nfaStack.Pop().(*nfa)
+			initial := &state{label: EPSILON, firstEdge: nfa1.initialState, secondEdge: nfa2.initialState}
+			end := &state{label: EPSILON, firstEdge: nil, secondEdge: nil}
+			nfa1.endState.firstEdge = end
+			nfa2.endState.firstEdge = end
+			nfaStack.Push(&nfa{initialState: initial, endState: end})
 
 		default:
 			initial := &state{label: c, firstEdge: nil, secondEdge: nil}
@@ -136,7 +147,7 @@ func printStates(currentState *state, visited map[*state]bool) {
 }
 
 func main() {
-	input := "aaa*"
+	input := "a(a|b)aaa"
 	input = addConcatOperators(input)
 	postfixVal := infixToPostfix(input)
 
