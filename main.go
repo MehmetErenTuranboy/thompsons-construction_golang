@@ -61,6 +61,7 @@ type state struct {
 	firstEdge  *state
 	secondEdge *state
 	id         int
+	isAccept   bool
 }
 
 type nfa struct {
@@ -70,9 +71,15 @@ type nfa struct {
 
 var stateID = 0
 
-func newState(label rune, firstEdge, secondEdge *state) *state {
+func newState(label rune, firstEdge, secondEdge *state, isAccept bool) *state {
 	stateID++
-	return &state{label, firstEdge, secondEdge, stateID}
+	return &state{
+		label:      label,
+		firstEdge:  firstEdge,
+		secondEdge: secondEdge,
+		id:         stateID,
+		isAccept:   isAccept,
+	}
 }
 
 func addConcatOperators(infix string) string {
@@ -92,36 +99,41 @@ func compile(postfix string) *nfa {
 	for _, c := range postfix {
 		switch c {
 		case '*':
-			childNFA := nfaStack.Pop().(*nfa)
-			initial := newState(EPSILON, childNFA.initialState, nil)
-			end := newState(EPSILON, nil, nil)
+			peekNFA := nfaStack.Pop().(*nfa)
+			initial := newState(EPSILON, peekNFA.initialState, nil, false)
+			end := newState(EPSILON, nil, nil, true) // end state should be an accept state
 			initial.secondEdge = end
-			childNFA.endState.firstEdge = childNFA.initialState
-			childNFA.endState.secondEdge = end
+			peekNFA.endState.firstEdge = initial
+			peekNFA.endState.secondEdge = end
+			peekNFA.initialState.isAccept = false // The initial state is no longer an accept state
 			nfaStack.Push(&nfa{initialState: initial, endState: end})
 
 		case '.':
 			nfa2 := nfaStack.Pop().(*nfa)
 			nfa1 := nfaStack.Pop().(*nfa)
 			nfa1.endState.firstEdge = nfa2.initialState
+			nfa1.endState.isAccept = false // The first NFA's end state is no longer an accept state
 			nfaStack.Push(&nfa{initialState: nfa1.initialState, endState: nfa2.endState})
 
 		case '|':
 			nfa2 := nfaStack.Pop().(*nfa)
 			nfa1 := nfaStack.Pop().(*nfa)
-			initial := newState(EPSILON, nfa1.initialState, nfa2.initialState)
-			end := newState(EPSILON, nil, nil)
+			initial := newState(EPSILON, nfa1.initialState, nfa2.initialState, false)
+			end := newState(EPSILON, nil, nil, true) // end state should be an accept state
 			nfa1.endState.firstEdge = end
+			nfa1.endState.isAccept = false // NFA1's end state is no longer an accept state
 			nfa2.endState.firstEdge = end
+			nfa2.endState.isAccept = false // NFA2's end state is no longer an accept state
 			nfaStack.Push(&nfa{initialState: initial, endState: end})
 
 		default:
-			initial := newState(c, nil, nil)
-			nfaStack.Push(&nfa{initialState: initial, endState: initial})
+			end := newState(c, nil, nil, true) // end state should be an accept state
+			nfaStack.Push(&nfa{initialState: end, endState: end})
 		}
 	}
 
-	return nfaStack.Pop().(*nfa)
+	finalNFA := nfaStack.Pop().(*nfa)
+	return finalNFA
 }
 
 func printStates(currentState *state, visited map[*state]bool) {
@@ -149,14 +161,19 @@ func printStates(currentState *state, visited map[*state]bool) {
 		}
 	}
 
-	fmt.Printf("State ID: %d, Label: %s, First Edge: %s, Second Edge: %s\n", currentState.id, stateLabel, firstEdgeLabel, secondEdgeLabel)
+	acceptState := ""
+	if currentState.isAccept {
+		acceptState = " (Accept State)"
+	}
+
+	fmt.Printf("State ID: %d, Label: %s, First Edge: %s, Second Edge: %s%s\n", currentState.id, stateLabel, firstEdgeLabel, secondEdgeLabel, acceptState)
 
 	printStates(currentState.firstEdge, visited)
 	printStates(currentState.secondEdge, visited)
 }
 
 func main() {
-	input := "a|b"
+	input := "aaaa*b*"
 	input = addConcatOperators(input)
 	postfixVal := infixToPostfix(input)
 
