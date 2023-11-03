@@ -9,7 +9,7 @@ import (
 
 const EPSILON = rune(0)
 
-func applyPrecedence(c rune) int {
+func ApplyPrecedence(c rune) int {
 	switch c {
 	case '*':
 		return 3
@@ -22,11 +22,11 @@ func applyPrecedence(c rune) int {
 	}
 }
 
-func operatorLister(c rune) bool {
+func OperatorLister(c rune) bool {
 	return strings.ContainsRune("|*.", c)
 }
 
-func infixToPostfix(infixRegex string) string {
+func InfixToPostfix(infixRegex string) string {
 	var resultInPostfix strings.Builder
 	stack := stack.New()
 
@@ -40,8 +40,8 @@ func infixToPostfix(infixRegex string) string {
 				resultInPostfix.WriteRune(stack.Pop().(rune))
 			}
 			stack.Pop() // Pop '('
-		} else if applyPrecedence(c) > -1 {
-			for stack.Len() > 0 && operatorLister(stack.Peek().(rune)) && applyPrecedence(c) <= applyPrecedence(stack.Peek().(rune)) {
+		} else if ApplyPrecedence(c) > -1 {
+			for stack.Len() > 0 && OperatorLister(stack.Peek().(rune)) && ApplyPrecedence(c) <= ApplyPrecedence(stack.Peek().(rune)) {
 				resultInPostfix.WriteRune(stack.Pop().(rune))
 			}
 			stack.Push(c)
@@ -56,33 +56,33 @@ func infixToPostfix(infixRegex string) string {
 	return resultInPostfix.String()
 }
 
-type state struct {
+type State struct {
 	label      rune
-	firstEdge  *state
-	secondEdge *state
+	firstEdge  *State
+	secondEdge *State
 	id         int
 	isAccept   bool
 }
 
 type nfa struct {
-	initialState *state
-	endState     *state
+	InitialState *State
+	endState     *State
 }
 
-var stateID = 0
+var StateID = 0
 
-func newState(label rune, firstEdge, secondEdge *state, isAccept bool) *state {
-	stateID++
-	return &state{
+func NewState(label rune, firstEdge, secondEdge *State, isAccept bool) *State {
+	StateID++
+	return &State{
 		label:      label,
 		firstEdge:  firstEdge,
 		secondEdge: secondEdge,
-		id:         stateID,
+		id:         StateID,
 		isAccept:   isAccept,
 	}
 }
 
-func addConcatOperators(infix string) string {
+func AddConcatOperators(infix string) string {
 	var b strings.Builder
 	for i, r := range infix {
 		if i > 0 && (infix[i-1] >= 'a' && infix[i-1] <= 'z' || infix[i-1] == '*' || infix[i-1] == ')') && (r >= 'a' && r <= 'z' || r == '(') {
@@ -93,46 +93,46 @@ func addConcatOperators(infix string) string {
 	return b.String()
 }
 
-func compile(postfix string) *nfa {
+func Compile(postfix string) *nfa {
 	nfaStack := stack.New()
 
 	for _, c := range postfix {
 		switch c {
 		case '*':
 			peekNFA := nfaStack.Pop().(*nfa)
-			initial := newState(EPSILON, peekNFA.initialState, nil, false)
-			end := newState(EPSILON, nil, nil, true)
+			initial := NewState(EPSILON, peekNFA.InitialState, nil, false)
+			end := NewState(EPSILON, nil, nil, true)
 			initial.secondEdge = end
 			peekNFA.endState.firstEdge = initial
 			peekNFA.endState.secondEdge = end
-			peekNFA.initialState.isAccept = false
-			nfaStack.Push(&nfa{initialState: initial, endState: end})
+			peekNFA.InitialState.isAccept = false
+			nfaStack.Push(&nfa{InitialState: initial, endState: end})
 
 		case '.':
 			nfa2 := nfaStack.Pop().(*nfa)
 			nfa1 := nfaStack.Pop().(*nfa)
-			nfa1.endState.firstEdge = nfa2.initialState
+			nfa1.endState.firstEdge = nfa2.InitialState
 			nfa1.endState.isAccept = false
-			nfaStack.Push(&nfa{initialState: nfa1.initialState, endState: nfa2.endState})
+			nfaStack.Push(&nfa{InitialState: nfa1.InitialState, endState: nfa2.endState})
 
 		case '|':
-			fmt.Printf("| state")
+			fmt.Printf("| State")
 			nfa2 := nfaStack.Pop().(*nfa)
 			nfa1 := nfaStack.Pop().(*nfa)
-			initial := newState(EPSILON, nfa1.initialState, nfa2.initialState, false)
-			end := newState(EPSILON, nil, nil, true) // end state should be an accept state
+			initial := NewState(EPSILON, nfa1.InitialState, nfa2.InitialState, false)
+			end := NewState(EPSILON, nil, nil, true) // end State should be an accept State
 			nfa1.endState.firstEdge = end
-			nfa1.endState.isAccept = false // NFA1's end state is no longer an accept state
+			nfa1.endState.isAccept = false // NFA1's end State is no longer an accept State
 			nfa2.endState.firstEdge = end
-			nfa2.endState.isAccept = false // NFA2's end state is no longer an accept state
-			nfaStack.Push(&nfa{initialState: initial, endState: end})
+			nfa2.endState.isAccept = false // NFA2's end State is no longer an accept State
+			nfaStack.Push(&nfa{InitialState: initial, endState: end})
 		default:
-			// Create two new states: One initial and one end state.
-			end := newState(EPSILON, nil, nil, true) // This is the accept state.
-			initial := newState(c, end, nil, false)  // The initial state transitions to the accept state on character c.
+			// Create two new States: One initial and one end State.
+			end := NewState(EPSILON, nil, nil, true) // This is the accept State.
+			initial := NewState(c, end, nil, false)  // The initial State transitions to the accept State on character c.
 
 			// Push the new NFA fragment onto the stack.
-			nfaStack.Push(&nfa{initialState: initial, endState: end})
+			nfaStack.Push(&nfa{InitialState: initial, endState: end})
 		}
 	}
 
@@ -140,7 +140,7 @@ func compile(postfix string) *nfa {
 	return finalNFA
 }
 
-func printTransition(currentState *state, visited map[*state]bool) {
+func PrintTransition(currentState *State, visited map[*State]bool) {
 	if currentState == nil || visited[currentState] {
 		return
 	}
@@ -153,7 +153,7 @@ func printTransition(currentState *state, visited map[*state]bool) {
 		}
 	} else {
 		if currentState.firstEdge != nil && currentState.secondEdge != nil {
-			// Handling of the SPLIT state for Kleene star and union.
+			// Handling of the SPLIT State for Kleene star and union.
 			fmt.Printf("node %d splits to node %d and node %d\n", currentState.id, currentState.firstEdge.id, currentState.secondEdge.id)
 		} else if currentState.firstEdge != nil {
 			// Handling of EPSILON transitions.
@@ -163,9 +163,9 @@ func printTransition(currentState *state, visited map[*state]bool) {
 
 	if currentState.isAccept {
 
-		fmt.Printf("node %d is an accept state\n", currentState.id)
+		fmt.Printf("node %d is an accept State\n", currentState.id)
 	}
 
-	printTransition(currentState.firstEdge, visited)
-	printTransition(currentState.secondEdge, visited)
+	PrintTransition(currentState.firstEdge, visited)
+	PrintTransition(currentState.secondEdge, visited)
 }
