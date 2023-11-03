@@ -1,9 +1,7 @@
-package main
+package tools
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/golang-collections/collections/stack"
@@ -170,36 +168,4 @@ func printTransition(currentState *state, visited map[*state]bool) {
 
 	printTransition(currentState.firstEdge, visited)
 	printTransition(currentState.secondEdge, visited)
-}
-
-func main() {
-	// Create an input reader
-
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Enter regex pattern:")
-
-	// Read the regex pattern from the user
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		fmt.Println("Error reading input:", err)
-		return
-	}
-
-	// Remove the newline character from the input if present
-	input = strings.TrimSuffix(input, "\n")
-	input = strings.TrimSuffix(input, "\r") // For Windows
-
-	// Add the concatenation operator '.' where needed
-	infix := addConcatOperators(input)
-
-	// Convert the modified infix regex to postfix notation
-	postfix := infixToPostfix(infix)
-
-	// Compile the postfix regex into an NFA
-	nfa := compile(postfix)
-
-	// Print the transitions of the NFA
-	fmt.Println("Transitions of the NFA:")
-	visited := make(map[*state]bool)
-	printTransition(nfa.initialState, visited)
 }
