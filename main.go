@@ -101,21 +101,22 @@ func compile(postfix string) *nfa {
 		case '*':
 			peekNFA := nfaStack.Pop().(*nfa)
 			initial := newState(EPSILON, peekNFA.initialState, nil, false)
-			end := newState(EPSILON, nil, nil, true) // end state should be an accept state
+			end := newState(EPSILON, nil, nil, true)
 			initial.secondEdge = end
 			peekNFA.endState.firstEdge = initial
 			peekNFA.endState.secondEdge = end
-			peekNFA.initialState.isAccept = false // The initial state is no longer an accept state
+			peekNFA.initialState.isAccept = false
 			nfaStack.Push(&nfa{initialState: initial, endState: end})
 
 		case '.':
 			nfa2 := nfaStack.Pop().(*nfa)
 			nfa1 := nfaStack.Pop().(*nfa)
 			nfa1.endState.firstEdge = nfa2.initialState
-			nfa1.endState.isAccept = false // The first NFA's end state is no longer an accept state
+			nfa1.endState.isAccept = false
 			nfaStack.Push(&nfa{initialState: nfa1.initialState, endState: nfa2.endState})
 
 		case '|':
+			fmt.Printf("| state")
 			nfa2 := nfaStack.Pop().(*nfa)
 			nfa1 := nfaStack.Pop().(*nfa)
 			initial := newState(EPSILON, nfa1.initialState, nfa2.initialState, false)
@@ -125,10 +126,13 @@ func compile(postfix string) *nfa {
 			nfa2.endState.firstEdge = end
 			nfa2.endState.isAccept = false // NFA2's end state is no longer an accept state
 			nfaStack.Push(&nfa{initialState: initial, endState: end})
-
 		default:
-			end := newState(c, nil, nil, true) // end state should be an accept state
-			nfaStack.Push(&nfa{initialState: end, endState: end})
+			// Create two new states: One initial and one end state.
+			end := newState(EPSILON, nil, nil, true) // This is the accept state.
+			initial := newState(c, end, nil, false)  // The initial state transitions to the accept state on character c.
+
+			// Push the new NFA fragment onto the stack.
+			nfaStack.Push(&nfa{initialState: initial, endState: end})
 		}
 	}
 
@@ -136,50 +140,46 @@ func compile(postfix string) *nfa {
 	return finalNFA
 }
 
-func printStates(currentState *state, visited map[*state]bool) {
+func printTransition(currentState *state, visited map[*state]bool) {
 	if currentState == nil || visited[currentState] {
 		return
 	}
 
 	visited[currentState] = true
 
-	firstEdgeLabel := "-"
-	secondEdgeLabel := "-"
-	if currentState.firstEdge != nil {
-		firstEdgeLabel = fmt.Sprintf("%d", currentState.firstEdge.id)
-	}
-	if currentState.secondEdge != nil {
-		secondEdgeLabel = fmt.Sprintf("%d", currentState.secondEdge.id)
-	}
-
-	stateLabel := string(currentState.label)
-	if currentState.label == EPSILON {
+	if currentState.label != EPSILON {
+		if currentState.firstEdge != nil {
+			fmt.Printf("node %d takes %s goes to node %d\n", currentState.id, string(currentState.label), currentState.firstEdge.id)
+		}
+	} else {
 		if currentState.firstEdge != nil && currentState.secondEdge != nil {
-			stateLabel = "SPLIT"
-		} else {
-			stateLabel = "EPSILON"
+			// Handling of the SPLIT state for Kleene star and union.
+			fmt.Printf("node %d splits to node %d and node %d\n", currentState.id, currentState.firstEdge.id, currentState.secondEdge.id)
+		} else if currentState.firstEdge != nil {
+			// Handling of EPSILON transitions.
+			fmt.Printf("node %d goes to node %d on EPSILON\n", currentState.id, currentState.firstEdge.id)
 		}
 	}
 
-	acceptState := ""
 	if currentState.isAccept {
-		acceptState = " (Accept State)"
+
+		fmt.Printf("node %d is an accept state\n", currentState.id)
 	}
 
-	fmt.Printf("State ID: %d, Label: %s, First Edge: %s, Second Edge: %s%s\n", currentState.id, stateLabel, firstEdgeLabel, secondEdgeLabel, acceptState)
-
-	printStates(currentState.firstEdge, visited)
-	printStates(currentState.secondEdge, visited)
+	printTransition(currentState.firstEdge, visited)
+	printTransition(currentState.secondEdge, visited)
 }
 
 func main() {
-	input := "aaaa*b*"
+	input := "abcd"
+	fmt.Println("Before addConcatOperators:", input)
 	input = addConcatOperators(input)
 	postfixVal := infixToPostfix(input)
 
-	fmt.Println("Postfix: ", postfixVal)
+	fmt.Println("Postfix: ", postfixVal) // Changed from 'input' to 'postfixVal'
 
 	automataRes := compile(postfixVal)
 	visited := make(map[*state]bool)
-	printStates(automataRes.initialState, visited)
+
+	printTransition(automataRes.initialState, visited)
 }
