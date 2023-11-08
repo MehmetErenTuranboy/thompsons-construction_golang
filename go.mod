@@ -1,4 +1,4 @@
-module regex_to_dfa
+module github.com/MehmetErenTuranboy/thompsons-construction_golang
 
 go 1.20
 

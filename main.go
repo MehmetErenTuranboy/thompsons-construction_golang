@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"regex_to_dfa/tools"
+
+	"github.com/MehmetErenTuranboy/thompsons-construction_golang/tools"
 )
 
 func main() {
