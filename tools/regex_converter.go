@@ -31,7 +31,7 @@ func InfixToPostfix(infixRegex string) string {
 	stack := stack.New()
 
 	for _, c := range infixRegex {
-		if c >= 'a' && c <= 'z' {
+		if c >= 'a' && c <= 'z' || (c >= 'A' && c <= 'Z') {
 			resultInPostfix.WriteRune(c)
 		} else if c == '(' {
 			stack.Push(c)
@@ -85,7 +85,7 @@ func NewState(label rune, firstEdge, secondEdge *State, isAccept bool) *State {
 func AddConcatOperators(infix string) string {
 	var b strings.Builder
 	for i, r := range infix {
-		if i > 0 && (infix[i-1] >= 'a' && infix[i-1] <= 'z' || infix[i-1] == '*' || infix[i-1] == ')') && (r >= 'a' && r <= 'z' || r == '(') {
+		if i > 0 && (infix[i-1] >= 'a' && infix[i-1] <= 'z' || infix[i-1] >= 'A' && infix[i-1] <= 'Z' || infix[i-1] == '*' || infix[i-1] == ')') && (r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r == '(') {
 			b.WriteRune('.')
 		}
 		b.WriteRune(r)

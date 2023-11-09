@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	input := "abcd"
+	input := "WOR"
 	fmt.Println("Before addConcatOperators:", input)
 	input = tools.AddConcatOperators(input)
 	postfixVal := tools.InfixToPostfix(input)
