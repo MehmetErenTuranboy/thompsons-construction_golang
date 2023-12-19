@@ -11,12 +11,15 @@ const EPSILON = rune(0)
 
 func ApplyPrecedence(c rune) int {
 	switch c {
+	case '?':
+		return 4
 	case '*':
 		return 3
 	case '.':
 		return 2
 	case '|':
 		return 1
+
 	default:
 		return -1
 	}
@@ -126,6 +129,15 @@ func Compile(postfix string) *nfa {
 			nfa2.endState.firstEdge = end
 			nfa2.endState.isAccept = false // NFA2's end State is no longer an accept State
 			nfaStack.Push(&nfa{InitialState: initial, endState: end})
+
+		case '?':
+			peekNFA := nfaStack.Pop().(*nfa)
+			initial := NewState(EPSILON, peekNFA.InitialState, nil, false)
+			end := NewState(EPSILON, nil, nil, true)
+			initial.secondEdge = end // Add an epsilon transition to the end state
+			peekNFA.endState.firstEdge = end
+			nfaStack.Push(&nfa{InitialState: initial, endState: end})
+
 		default:
 			// Create two new States: One initial and one end State.
 			end := NewState(EPSILON, nil, nil, true) // This is the accept State.
